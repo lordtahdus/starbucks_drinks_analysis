@@ -1,0 +1,666 @@
+---
+title: "Analysis on Starbucks Drinks"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+    source_code: embed
+    theme: 
+      version: 4 
+      bootswatch: minty
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	eval = TRUE,
+	echo = FALSE,
+	message = FALSE,
+	cache = TRUE,
+	cache.lazy = FALSE
+)
+```
+
+```{r libraries, warning=FALSE, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(plotly)
+library(gridExtra)
+library(gganimate)
+library(viridis)
+library(kableExtra)
+library(DT)
+```
+
+```{r read_data, eval=TRUE, include=FALSE}
+tuesdata <- tidytuesdayR::tt_load(2021, week = 52)
+starbucks_raw <- tuesdata$starbucks
+```
+
+```{r clean_data, eval=TRUE, include=FALSE}
+starbucks <- starbucks_raw %>% 
+  mutate(trans_fat_g = as.numeric(trans_fat_g),
+         fiber_g = as.numeric(fiber_g),
+         whip = factor(whip,
+                       levels = c("0", "1")),
+         category = as.character(row_number())) %>%    # create a variable for row number
+  filter(category == 1:1144)
+
+# Adding the category value by replacing the row number, based on the original Starbucks pdf 
+starbucks$category[starbucks$category %in% c(1:80)] <- "Coffee"
+starbucks$category[starbucks$category %in% c(81:449)] <- "Espresso"
+starbucks$category[starbucks$category %in% c(450:674)] <- "Tea"
+starbucks$category[starbucks$category %in% c(675:682)] <- "Refreshers"
+starbucks$category[starbucks$category %in% c(683:697)] <- "Smoothies"
+starbucks$category[starbucks$category %in% c(698:1048)] <- "Frappuccino"
+starbucks$category[starbucks$category %in% c(1049:1144)] <- "Hot Chocolate and Other"
+starbucks$category[starbucks$category %in% c(1145:1147)] <- "Add-ons"
+
+# Replace the wrong value in trans_fat_g column
+starbucks$trans_fat_g[starbucks$trans_fat_g == 2] <- 0.2
+
+# Changing the milk id number into names
+starbucks$milk[starbucks$milk == 0] <- "none"
+starbucks$milk[starbucks$milk == 1] <- "nonfat"
+starbucks$milk[starbucks$milk == 2] <- "2%"
+starbucks$milk[starbucks$milk == 3] <- "soy"
+starbucks$milk[starbucks$milk == 4] <- "coconut"
+starbucks$milk[starbucks$milk == 5] <- "whole"
+
+starbucks <- starbucks %>% 
+  mutate(milk = factor(milk,
+                       levels = c("none", "nonfat", "2%", "soy", "coconut", "whole")))
+```
+
+
+
+
+
+Introduction
+=======================================
+
+<center> <h1> _Analysis on Starbucks Drinks_ </h1> </center>
+<center> _by Dat Su (32374062)_ </center>
+
+<br>
+
+<br>
+
+In recent years, Starbucks has enjoyed remarkable success by becoming one of the largest coffee chains in the world. Every day, millions of coffee drinkers enter the shop and pick up their favorites to satisfy their sweet tooth and caffeine craving. However, many are left pondering the healthiness of these delicious drinks.
+
+<br>
+
+**Motivation**  
+
+Recently, *fats* have become one of the people's concerns for their health. The truth is that not all fats are bad. According to [Harvard Health Publishing](https://www.health.harvard.edu/staying-healthy/the-truth-about-fats-bad-and-good), we should avoid eating trans fat and limit saturated fat intake, replacing them with healthful unsaturated fat. It creates a motivation to explore different fat amounts in Starbucks drinks and whether there is an option to eliminate bad fats and increase good ones. In addition, many people wonder if these drinks can be treated as a meal. This leads to another question about the percentage of nutrient intake with respect to average daily values.
+
+It can be summarised into two research questions: 
+
+1. What is the amount of trans fat, saturated fat, and unsaturated fat in Starbucks drinks? Which factors contribute to those fats?
+
+2. What is the average daily intake percentage of nutrients for different categories of drinks?
+
+
+
+
+
+About the data
+========================================
+
+Row {data-width=600 data-height=1000}
+-----------------------------------------------------------------------
+
+```{r}
+datatable(starbucks, fillContainer = TRUE)
+```
+
+
+
+Column {.sidebar data-width=400}
+----------------------------------------------------------------------
+
+> **Original dataset**
+
+The dataset from [Tidy Tuesday](https://github.com/rfordatascience/tidytuesday/blob/master/data/2021/2021-12-21/readme.md#starbuckscsv) (2021) contains the official nutrition of Starbucks drinks, retrieved from the document [Starbucks Coffee Company Beverage Nutrition Information](https://globalassets.starbucks.com/assets/94fbcc2ab1e24359850fa1870fc988bc.pdf). There is no missing value in this dataset.
+
+<br>
+
+> **Further data wrangling**
+
+All the drinks are categorised into seven categories - Coffee, Espresso, Tea, Frappuccino, Refreshers, Smoothies, Hot Chocolate and others - based on the document [Starbucks Coffee Company Beverage Nutrition Information](https://globalassets.starbucks.com/assets/94fbcc2ab1e24359850fa1870fc988bc.pdf).
+
+The last three rows are removed, as they are add-ons and irrelevant to the analysis.
+
+The milk variable is replaced by the name of each type of milk.
+
+In the trans fat variable, the incorrect amount of 2 grams is replaced by 0.2 grams after comparing the fat amount in the same drinks.
+
+
+
+
+
+Exploration {data-navmenu="Part A"}
+=======================================
+
+Row {data-width=600 data-height=500}
+-----------------------------------------------------------------------
+
+### Distribution of total fat {data-width=400}
+
+```{r fig.align='center'}
+dist1 <- starbucks %>%
+  ggplot(aes(total_fat_g)) +
+    geom_histogram(fill = "#117A65", 
+                   alpha = 0.7,
+                   color = "white", 
+                   binwidth = 2,
+                   bins = 20) +
+    theme_classic() +
+    labs(x = "Total fat (g)",
+         y = "Number of drinks")
+  
+ggplotly(dist1)
+```
+
+### Distribution of trans fat {data-width=200}
+
+```{r fig.align='center'}
+dist2 <- starbucks %>%
+  ggplot(aes(trans_fat_g)) +
+    geom_histogram(fill = "#117A65", 
+                   alpha = 0.7,
+                   color = "white", 
+                   binwidth = 0.1) +
+    theme_classic() +
+    labs(x = "Trans fat (g)",
+         y = "Number of drinks")
+
+ggplotly(dist2)
+```
+
+
+
+Row {data-width=600}
+----------------------------------------------------------------------
+
+### Relationship between fat and other nutrients (Grande)
+
+```{r }
+# Organise data for scartter plot
+starbucks_sca1 <- starbucks %>%
+  filter(size == "grande") %>% 
+  mutate(milk = ifelse(milk == "none", "Non Milk", "Include Milk"),
+         whip = ifelse(whip == 0, "Non Whip", "Include Whip"))
+
+# Create 3 scartter plots
+scarter1 <- starbucks_sca1 %>%
+  ggplot(aes(total_fat_g, sugar_g, color = milk, shape = whip)) +
+    geom_point(position = "jitter",
+               alpha = 0.7,
+               size = 2) +
+    labs(x = "Total fat (g)",
+         y = "Sugar",
+         color = "", 
+         shape = "") +
+    theme_bw()
+
+scarter2 <- starbucks_sca1 %>%
+  ggplot(aes(total_fat_g, cholesterol_mg, color = milk, shape = whip)) +
+    geom_point(position = "jitter",
+               alpha = 0.7,
+               size = 2) +
+    labs(x = "",
+         y = "Cholesterol (mg)",
+         color = "",
+         shape = "") +
+    theme_bw()
+  
+scarter3 <- starbucks_sca1 %>%
+  ggplot(aes(total_fat_g, calories, color = milk, shape = whip)) +
+    geom_point(position = "jitter",
+               alpha = 0.7,
+               size = 2) +
+    labs(x = "",
+         y = "Calories",
+         color = "", 
+         shape = "") +
+    theme_bw()
+
+scarter1 <- ggplotly(scarter1)
+scarter2 <- ggplotly(scarter2)
+scarter3 <- ggplotly(scarter3)
+
+# Arrange into 1 plot
+subplot(style(scarter1, showlegend = F), style(scarter2, showlegend = F), scarter3,
+        nrows = 1,
+        titleY = TRUE,
+        shareX = TRUE,
+        margin = 0.04)
+```
+
+
+
+Column {.sidebar data-width=400}
+----------------------------------------------------------------------
+
+> **Findings**
+
+*Fat content:*
+
+* The total fat amount is shown to be positively-skewed distributed. Most Starbucks drinks have a low amount of fat, and only a small number are high in fat.
+
+* No drinks from Starbucks exceed the recommended amount of fat (78g), as suggested by FDA (2022). However, they contain trans fat, which is the type of fat that should be avoided as much as possible (Harvard Health Publishing, 2022).
+
+<br>
+
+*Causal effects:*
+
+The scatterplot has been restricted to a particular size, grande, in order to isolate other nutrients' effects on fat.
+
+* Initially, it is intuitive that the amount of fat is correlated with each cholesterol, calories, and sugar. However, after considering the milk and whipped cream, drinks without milk and whip are likely to be low in fat. Therefore, the correlations do not imply the causal effects of other nutrients on the fat amount.
+
+* It indicates that milk and whipped cream are the culprits of high fat and contain sugar, cholesterol, and calories. The positive relationship in scatter plots exists because drinks have different amounts of milk and different types of milk, which bring different quantities of nutrients.
+
+
+
+
+
+Analysis {data-navmenu="Part A"}
+=======================================
+
+Row {.tabset data-width=600 data-height=600}
+----------------------------------------------------------------------
+
+> Relationship between Fat and Milk (Grande)
+
+### Total fat
+
+```{r}
+box1 <- starbucks %>%                 # total
+  filter(size == "grande",
+         whip == 0,
+         milk != "none") %>% 
+  ggplot(aes(milk, total_fat_g, fill = milk)) +
+    geom_boxplot() +
+    theme_light() +
+    theme(legend.position = "none") +
+    labs(x = "", y = "Total fat (g)")
+
+ggplotly(box1)
+```
+
+### Types of fat
+
+```{r}
+box2 <- starbucks %>% 
+  mutate(unsaturated_fat_g = total_fat_g - (saturated_fat_g + trans_fat_g)) %>% 
+  rename(`saturated fat` = saturated_fat_g,
+         `trans fat` = trans_fat_g,
+         `unsaturated fat` = unsaturated_fat_g) %>% 
+  pivot_longer(cols = c(`saturated fat`, `unsaturated fat`, `trans fat`),
+               names_to = "fat_type",
+               values_to = "fat_g") %>%                     # type
+  filter(size == "grande",
+         whip == 0,
+         milk != "none") %>% 
+  ggplot(aes(as.factor(milk), fat_g, fill = milk)) +
+    geom_boxplot() +
+    theme_bw() +
+    theme(legend.position = "none") +
+    labs(x = "", y = "Fat (g)") +
+    facet_grid(fat_type ~ milk, scales = "free")
+
+ggplotly(box2)
+```
+
+
+
+Row {data-width=600 data-height=600}
+----------------------------------------------------------------------
+
+### Relationship between Fat and Whip cream (Grande) {data-width=600}
+
+```{r}
+box3 <- starbucks %>% 
+  mutate(unsaturated_fat_g = total_fat_g - (saturated_fat_g + trans_fat_g)) %>% 
+  rename(`total fat` = total_fat_g,
+         `saturated fat` = saturated_fat_g,
+         `trans fat` = trans_fat_g,
+         `unsaturated fat` = unsaturated_fat_g) %>% 
+  pivot_longer(cols = c(`total fat`, `saturated fat`, `trans fat`, `unsaturated fat`),
+               names_to = "fat_type",
+               values_to = "fat_g") %>%                      # type
+  mutate(fat_type = factor(fat_type,
+                           levels = c("total fat", "saturated fat", "trans fat", "unsaturated fat")),
+         whip = if_else(whip == 1, "included", "none")) %>% 
+  filter(size == "grande",
+         milk %in% c("none","nonfat")) %>% 
+  ggplot(aes(whip, fat_g, fill = whip)) +
+    geom_boxplot() +
+    facet_wrap("fat_type",
+               scales = "free_y",
+               nrow = 1) +
+    theme_bw() +
+    theme(legend.position = "none") +
+    labs(x = "Whip", y = "Fat (g)")
+
+ggplotly(box3)
+```
+
+
+
+Row {data-width=600 data-height=600}
+----------------------------------------------------------------------
+
+### Regression Model
+
+<br>
+
+$\hat{Trans} = 0.005 + 0.250Whip + 0.098Twopct + 0.138Whole + 0.051(Grande*Twopct) + 0.052(Grande*Whole) + 0.117(Venti*Twopct) + 0.124(Venti*Whole)$
+
+```{r}
+lm_trans_data <- starbucks %>% 
+  filter(size %in% c("tall", "grande", "venti")) %>%   
+  mutate(milk = as.character(milk),
+         milk = replace(milk, milk %in% c("none","nonfat","soy","coconut"), "notrans"), 
+         twopercent = if_else(milk == "2%", 1, 0),
+         whole = if_else(milk == "whole", 1, 0),
+         grande = if_else(size == "grande", 1, 0),
+         venti = if_else(size == "venti", 1, 0))
+         
+lm_trans <- lm(trans_fat_g ~ as.factor(whip) + twopercent*grande + whole*grande + twopercent*venti + whole*venti - grande - venti, data = lm_trans_data)
+names(lm_trans$coefficients) <- c("Intercept", "Whip", "Twopercent", "Whole",
+                                  "Grande*Twopercent", "Grande*Whole", "Venti*Twopercent", "Venti*Whole")
+summary(lm_trans)
+```
+
+
+
+Column {.sidebar data-width=400}
+----------------------------------------------------------------------
+
+> **Findings**
+
+<span style = "color: silver"> 
+Note: For visualisation purposes, the dataset is filtered with Grande size to eliminate the impacts of different serving amounts. Also, Grande is the most popular drink size and is available for all of the drinks on the menu (Fluent In Coffee, 2022) 
+</span>
+
+*Milk:*
+
+<span style = "color: silver">All drinks are filtered with no whip cream to isolate the effect of milk.</span>
+
+* Non-fat milk only contains a small amount of unsaturated fat.
+ 
+* Soy milk is rich in healthy unsaturated fat, while coconut provides a large quantity of saturated fat.
+ 
+* 2% is the standard type of milk, containing all three types of fat; whole milk brings the highest fat amount. Also, trans fat comes from only these two types of milk.
+
+<br>
+
+*Whip:*
+
+<span style = "color: silver">All drinks are filtered with none and non-fat milk, since some drinks must contain milk.</span>
+
+* Whip cream contains over of 10g fat, mainly saturated fat.
+
+* Notably, it has around 0.3g of trans fat, a surprisingly high amount, given that the maximum trans fat among drinks on the menu is 0.5g.
+
+<br>
+
+> **Model Analysis**
+
+*Assumptions:*
+
+* All assumptions for OLS linear regressions are satisfied.
+
+* Starbucks in Australia only includes three sizes on the menu - tall, grande, and venti - and assume that no other sizes are offered.
+
+* The amount of milk in drinks increase according to serving size.
+
+*Interpretation:*
+
+* The model has $R^{2}=0.87$, indicating a good model.
+
+* Slope dummy variables (interaction dummy) are included to allow the marginal effect of 2% and whole milk to vary by serving size. As the drink size gets larger, the trans fat from milk increases.
+
+* All the regressors are individually significant at a significant level of 5%.
+
+
+
+
+
+Part B
+=======================================
+
+Row {.tabset data-width=600 data-height=600}
+----------------------------------------------------------------------
+
+### Tall
+
+```{r}
+h1 <- starbucks %>% 
+  filter(size == "tall") %>% 
+  mutate(fat = (total_fat_g/78)*100,
+         cholesterol = (cholesterol_mg/300)*100,
+         carbs = (total_carbs_g/275)*100,
+         sugar = (sugar_g/50)*100,
+         caffeine = (caffeine_mg/400)*100,
+         calories = (calories/2000)*100) %>% 
+  pivot_longer(cols = c(fat, cholesterol, carbs, sugar, caffeine, calories),
+               names_to = "nutrition",
+               values_to = "intake_percent") %>% 
+  group_by(category, nutrition) %>% 
+  summarise(intake_percent = round(mean(intake_percent), 1)) %>% 
+  ggplot(aes(category, nutrition, fill = intake_percent)) +
+    geom_tile() +
+    theme_bw() + 
+    scale_fill_viridis_c(limits = c(0, 150), 
+                         oob = scales::squish, 
+                         direction = -1) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                     size = 10, hjust = 1)) +
+    labs(x = "", y = "",
+         fill = "Intake percent (%)")
+
+ggplotly(h1)
+```
+
+### Grande
+
+```{r}
+h2 <- starbucks %>% 
+  filter(size == "grande") %>% 
+  mutate(fat = (total_fat_g/78)*100,
+         cholesterol = (cholesterol_mg/300)*100,
+         carbs = (total_carbs_g/275)*100,
+         sugar = (sugar_g/50)*100,
+         caffeine = (caffeine_mg/400)*100,
+         calories = (calories/2000)*100) %>% 
+  pivot_longer(cols = c(fat, cholesterol, carbs, sugar, caffeine, calories),
+               names_to = "nutrition",
+               values_to = "intake_percent") %>% 
+  group_by(category, nutrition) %>% 
+  summarise(intake_percent = round(mean(intake_percent), 1)) %>% 
+  ggplot(aes(category, nutrition, fill = intake_percent)) +
+    geom_tile() +
+    theme_bw() + 
+    scale_fill_viridis_c(limits = c(0, 150), 
+                         oob = scales::squish, 
+                         direction = -1) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                     size = 10, hjust = 1)) +
+    labs(x = "", y = "",
+         fill = "Intake percent (%)")
+
+ggplotly(h2)
+```
+
+### Venti
+
+```{r}
+h3 <- starbucks %>% 
+  filter(size == "venti") %>% 
+  mutate(fat = (total_fat_g/78)*100,
+         cholesterol = (cholesterol_mg/300)*100,
+         carbs = (total_carbs_g/275)*100,
+         sugar = (sugar_g/50)*100,
+         caffeine = (caffeine_mg/400)*100,
+         calories = (calories/2000)*100) %>% 
+  pivot_longer(cols = c(fat, cholesterol, carbs, sugar, caffeine, calories),
+               names_to = "nutrition",
+               values_to = "intake_percent") %>% 
+  group_by(category, nutrition) %>% 
+  summarise(intake_percent = round(mean(intake_percent), 1)) %>% 
+  ggplot(aes(category, nutrition, fill = intake_percent)) +
+    geom_tile() +
+    theme_bw() + 
+    scale_fill_viridis_c(limits = c(0, 150), 
+                         oob = scales::squish, 
+                         direction = -1) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                     size = 10, hjust = 1)) +
+    labs(x = "", y = "",
+         fill = "Intake percent (%)")
+
+ggplotly(h3)
+```
+
+
+
+Row {data-width=600 data-height=600}
+----------------------------------------------------------------------
+
+### Average Sugar on sizes {data-width=200}
+
+```{r}
+starbucks %>% 
+  select(category, size, sugar_g) %>% 
+  filter(size %in% c("tall", "grande", "venti")) %>% 
+  group_by(category, size) %>% 
+  summarise(mean = round(mean(sugar_g)), 1) %>% 
+  pivot_wider(id_cols = category,
+              names_from = size,
+              values_from = mean) %>% 
+  select(category, tall, grande, venti) %>%
+  kable() %>%
+  kable_styling()
+```
+
+
+### Distribution of sugar {data-width=400}
+
+```{r include=FALSE, eval=F}
+gif1 <- starbucks %>% 
+  ggplot(aes(sugar_g)) +
+    geom_histogram(fill = "#117A65", 
+                   alpha = 0.7,
+                   color = "white",
+                   binwidth = 4) +
+    scale_x_continuous(breaks = seq(0, 100, 20)) +
+    geom_vline(aes(xintercept = 50),
+               linetype = "twodash",
+               colour="black") +
+    annotate("text",
+             x = 63,
+             y = 50,
+             label = "Suggested average intake (50g)",
+             size = 6) +
+    labs(x = "Sugar (g)",
+         y = "Number of drinks",
+         title = "Type of drink: {closest_state}") +
+    theme_classic() + 
+    theme(title = element_text(size = 16),
+          axis.text.x = element_text(size = 14),
+          axis.text.y = element_text(size = 14)) +
+    transition_states(category)
+
+animate(gif1, width = 1120, height = 700)
+
+anim_save("sugar_dist.webm")
+```
+
+<img src="https://media.giphy.com/media/EKLYFW0DLNpTesE9Dz/giphy.gif">
+
+
+
+Column {.sidebar data-width=400}
+----------------------------------------------------------------------
+
+Recommended daily intake amount, based on 2000g calories
+
+* Added sugar: 50g 
+
+* Fat: 78g
+
+* Cholesterol: 300mg
+
+* Carbs: 275g
+
+* Caffeine: >400mg
+
+> **Findings**
+
+* Fat, cholesterol, carbs, and calories in Starbucks drinks do not account for high daily intake percent, mostly below 25%. It is reasonable to consume them in addition to everyday meals.
+
+* Caffeine from Coffee and Espresso stays under 70%, which does not exceed the maximum recommended amount of 400g.
+
+* However, the drinks contain a massive amount of sugar, especially Frappuccino and Hot Chocolate. An average Frappuccino venti size brings over 140% of daily sugar intake, 72g.
+
+* Coffee, Refreshers, and Tea bring around 10g to 30g of sugar on average.
+
+* Venti size brings nearly twice the amount of sugar in Tall size. It is expected as the serving size also nearly doubled.
+
+
+
+
+
+Conclusion
+=====================================     
+
+**Conclusion**
+
+According to the analysis, the total fat in most Starbucks drinks is less than 10g, mainly saturated fat, which is intuitively not a big threat to consumers’ health. However, a deeper insight reveals that the drinks contain trans fat, bad unsaturated fat that should be avoided as much as possible. The trans fat comes from 2% milk, whole milk, and especially extra whipped cream that is added to the drinks. The best solution to eliminate trans fat for Starbucks lovers is to tell the barista to use non-fat, soy, or coconut milk when ordering a drink that includes milk. Whipped cream also must be avoided to make the drinks zero trans-fat.
+
+On the other hand, a drink obviously could not replace lunch or dinner since it does not contain sufficient macronutrients. The drink does not provide enough calories and energy for a person to get through the day. It is more reasonable to consume them in addition to daily meals. However, customers should be wary about their intake to avoid exceeding the recommended daily nutrition, particularly sugar. Since the FDA (2022) suggests no more than 50g of added sugar per day, the amount in Frappuccino and Hot chocolate is considered excessive. Health-conscious people should seek better options from Coffee, Refreshers, and Tea. If not, they could order Frappuccino and Hot chocolate in a smaller size.
+
+<br>
+
+<br>
+
+***
+
+**Reference**
+
+R Core Team (2022). *R: A language and environment for statistical computing*. https://www.R-project.org/
+
+RStudio Team (2022). *RStudio: Integrated development for R*. http://www.rstudio.com/
+
+Allaire, J. J., Xie, Y., McPherson, J., Luraschi, J., Ushey, K., Atkins, A., Wickham, H., Cheng, J., Chang, W., & Iannone, R. (2020). *R Markdown: Dynamic documents for R*. https://github.com/rstudio/rmarkdown
+
+Wickham, H., Averick, M., Bryan, J., Chang, W., McGowan, L., François, R., Grolemund, G., Hayes, A., Henry, L., Hester, J., Kuhn, M., Pedersen, T., Miller, E., Bache, S., Müller, K., Ooms, J., Robinson, D., Seidel, D., Spinu, V., . . . Yutani, H. (2019). Welcome to the Tidyverse. *Journal of Open Source Software*, *4*(43), 1686. https://doi.org/10.21105/joss.01686 
+
+Sievert C., Iannone R., Allaire J., Borges B. (2022). *Flexdashboard: R Markdown format for flexible dashboards*. flexdashboard. https://pkgs.rstudio.com/flexdashboard/
+
+Sievert, C. (2020). *Interactive web-Based data visualization with R, plotly, and shiny*. Chapman and Hall/CRC. https://plotly-r.com
+
+Auguie, B. (2017). *GridExtra: Miscellaneous Functions for “Grid” Graphics*. Comprehensive R Archive Network. https://cran.r-project.org/web/packages/gridExtra/index.html
+
+Pedersen T., Robinson D. (2022). *gganimate: A grammar of animated graphics*. gganimate. https://gganimate.com
+
+Zhu, H. (2021). *kableExtra: Construct complex table with ‘kable’ and pipe syntax*. Comprehensive R Archive Network. https://CRAN.R-project.org/package=kableExtra
+
+Tal Galili; timelyportfolio; Brandon Greenwell; Carson Sievert; David J. Harris; JJ Chen
+
+Garnier, S., Ross, N., Rudis, B., Sciaini, M., Camargo, A. P., Scherer, C. (2021). *viridis: Colorblind-friendly color maps for R*. Comprehensive R Archive Network. https://cran.r-project.org/web/packages/viridis/index.html
+
+Xie, Y. (2022). *DT: A wrapper of the JavaScript library 'DataTables'*. Comprehensive R Archive Network. https://cran.r-project.org/web/packages/DT/index.html
+
+Park, T. (2022). *Free themes for bootstrap*. Bootswatch. https://bootswatch.com/
+
+Mock, T. (2022). *Tidy Tuesday: A weekly data project aimed at the R ecosystem*. https://github.com/rfordatascience/tidytuesday.
+
+U.S. Food and Drug Administration. (2022). *Daily value on the new nutrition and supplement facts labels*. https://www.fda.gov/food/new-nutrition-facts-label/daily-value-new-nutrition-and-supplement-facts-labels
+
+Harvard Health Publishing. (2022). *The truth about fats: The good, the bad, and the in-between*. Harvard Medical School. https://www.health.harvard.edu/staying-healthy/the-truth-about-fats-bad-and-good
+
+Carey, C. (2022). *Starbucks cup sizes: A brief guide to 7 Starbucks cups*. Fluent In Coffee. https://fluentincoffee.com/starbucks-cup-sizes/
