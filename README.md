@@ -16,6 +16,7 @@ It can be summarised into two research questions:
 
 The dataset from [Tidy Tuesday](https://github.com/rfordatascience/tidytuesday/blob/master/data/2021/2021-12-21/readme.md#starbuckscsv) (2021) contains the official nutrition of Starbucks drinks, retrieved from the document [Starbucks Coffee Company Beverage Nutrition Information](https://globalassets.starbucks.com/assets/94fbcc2ab1e24359850fa1870fc988bc.pdf). There is no missing value in this dataset.
 
+<br>
 
 ## Conclusion
 
