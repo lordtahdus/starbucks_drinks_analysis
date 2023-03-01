@@ -1,5 +1,9 @@
 # Analysis on Starbucks Drinks
 
+Analysis is live at [here](https://lordtahdus.github.io/starbucks_drinks_analysis/)
+
+<br>
+
 ## Motivation  
 
 Recently, *fats* have become one of the people's concerns for their health. The truth is that not all fats are bad. According to [Harvard Health Publishing](https://www.health.harvard.edu/staying-healthy/the-truth-about-fats-bad-and-good), we should avoid eating trans fat and limit saturated fat intake, replacing them with healthful unsaturated fat. It creates a motivation to explore different fat amounts in Starbucks drinks and whether there is an option to eliminate bad fats and increase good ones. In addition, many people wonder if these drinks can be treated as a meal. This leads to another question about the percentage of nutrient intake with respect to average daily values.
