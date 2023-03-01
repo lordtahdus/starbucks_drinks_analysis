@@ -1,6 +1,6 @@
 # Analysis on Starbucks Drinks
 
-Analysis is live at [here](https://lordtahdus.github.io/starbucks_drinks_analysis/)
+Analysis implemented with R language, live at [here](https://lordtahdus.github.io/starbucks_drinks_analysis/)
 
 <br>
 
